@@ -1,0 +1,9 @@
+﻿train: D:\code\yolo_rephoto\dataset_rephoto_300\images\train
+val: D:\code\yolo_rephoto\dataset_rephoto_300\images\val
+test: D:\code\yolo_rephoto\dataset_rephoto_300\images\test
+
+nc: 3
+names:
+  0: crimp_region
+  1: short_crimp
+  2: insufficient_crimp

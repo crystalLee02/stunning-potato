@@ -1,0 +1,7 @@
+img=D:\code\yolo_rephoto\measure_pics\Pic_20251218223854584.bmp
+under_conf2=0.827053427696228
+class0_conf=0.8494234681129456
+alg=UNDERCRIMP_MEAS
+rot_angle_deg=88.43118717467343
+length_px=418.0
+length_mm=None

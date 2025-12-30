@@ -1,0 +1,10 @@
+img=D:\code\yolo_rephoto\measure_pics\Pic_20251218224009641.bmp
+class2_conf=0.0
+class0_conf=0.8779475688934326
+rot_angle_deg=104.21700309443824
+roi_norm_raw_w=650
+roi_norm_final_w=450
+cropped=True
+crop_off_x=100
+length_px=287.0
+length_mm=None
