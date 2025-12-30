@@ -1,4 +1,5 @@
-﻿from ultralytics import YOLO
+from ultralytics import YOLO
+
 
 def main():
     print(">>> Starting YOLOv8n dualhead training script")
@@ -16,6 +17,7 @@ def main():
     )
 
     print(">>> Training finished")
+
 
 if __name__ == "__main__":
     main()

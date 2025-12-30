@@ -1,9 +1,11 @@
-﻿import os
-import glob
 import csv
+import glob
+import os
+
 import cv2
-from ultralytics import YOLO
 import numpy as np
+
+from ultralytics import YOLO
 
 
 def collect_images(input_path):
@@ -43,9 +45,9 @@ def draw_label(img, text, org=(20, 40), color=(0, 255, 0)):
 if __name__ == "__main__":
     # ====== 你只改这里 ======
     weights_path = r"D:\code\yolo_rephoto\v8n_blam_best.pt"
-    input_path   = r"D:\code\yolo_rephoto\measure_pics"     # 单张/文件夹/通配符
-    save_dir     = r"D:\code\yolo_rephoto\infer_out"
-    conf_thres   = 0.25   # 推理阈值（想看更多框就调低）
+    input_path = r"D:\code\yolo_rephoto\measure_pics"  # 单张/文件夹/通配符
+    save_dir = r"D:\code\yolo_rephoto\infer_out"
+    conf_thres = 0.25  # 推理阈值（想看更多框就调低）
     # ========================
 
     os.makedirs(save_dir, exist_ok=True)
@@ -101,20 +103,19 @@ if __name__ == "__main__":
 
                     cache[idx] = dict(ok=True, img=img, has_box=True, cls_id=cls_id, conf=conf, box=(x1, y1, x2, y2))
 
-
         data = cache[idx]
 
         if not data.get("ok", False):
             blank = 255 * (0 * cv2.imread(img_list[0]) if False else None)
-            print(f"\n[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  FAIL: {data.get('reason')}")
+            print(f"\n[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  FAIL: {data.get('reason')}")
             break
 
         img = data["img"].copy()
 
         if not data["has_box"]:
-            text = f"[{idx+1}/{len(img_list)}] {base}  NO BOX"
+            text = f"[{idx + 1}/{len(img_list)}] {base}  NO BOX"
             vis = draw_label(img, text, color=(0, 0, 255))
-            print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  NO BOX                    ", end="")
+            print(f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  NO BOX                    ", end="")
             # 记录 csv
             rows.append([idx, os.path.basename(img_path), "", "", "", "", "", "", ""])
         else:
@@ -124,10 +125,13 @@ if __name__ == "__main__":
             cls_name = names.get(cls_id, str(cls_id))
 
             cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            text = f"[{idx+1}/{len(img_list)}] {base}  cls={cls_id}({cls_name})  conf={conf:.2f}"
+            text = f"[{idx + 1}/{len(img_list)}] {base}  cls={cls_id}({cls_name})  conf={conf:.2f}"
             vis = draw_label(img, text, color=(0, 255, 0))
 
-            print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  cls={cls_id}({cls_name}) conf={conf:.2f}        ", end="")
+            print(
+                f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  cls={cls_id}({cls_name}) conf={conf:.2f}        ",
+                end="",
+            )
 
             # 记录 csv
             rows.append([idx, os.path.basename(img_path), cls_id, cls_name, f"{conf:.4f}", x1, y1, x2, y2])
@@ -135,16 +139,16 @@ if __name__ == "__main__":
         show_resized("Infer Viewer", vis, max_size=1100)
 
         key = cv2.waitKey(0) & 0xFF
-        if key in [27, ord('q'), ord('Q')]:
+        if key in [27, ord("q"), ord("Q")]:
             break
-        if key in [ord('a'), 81]:   # A or Left
+        if key in [ord("a"), 81]:  # A or Left
             idx -= 1
             continue
-        if key in [ord('d'), 83]:   # D or Right
+        if key in [ord("d"), 83]:  # D or Right
             idx += 1
             continue
 
-        if key in [ord('s'), ord('S')]:
+        if key in [ord("s"), ord("S")]:
             # 保存当前可视化和 txt
             out_img = os.path.join(save_dir, f"{base}_infer.png")
             cv2.imwrite(out_img, vis)
