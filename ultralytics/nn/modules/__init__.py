@@ -18,9 +18,8 @@ Examples:
 """
 
 ################################
-from .block import BLAM
-
 from .block import (
+    BLAM,
     C1,
     C2,
     C2PSA,
