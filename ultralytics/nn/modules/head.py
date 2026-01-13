@@ -20,16 +20,26 @@ from .conv import Conv, DWConv
 from .transformer import MLP, DeformableTransformerDecoder, DeformableTransformerDecoderLayer
 from .utils import bias_init_with_prob, linear_init
 
-__all__ = "DualDetect", "OBB", "Classify", "Detect", "Pose", "RTDETRDecoder", "Segment", "YOLOEDetect", "YOLOESegment", "v10Detect"
+__all__ = (
+    "OBB",
+    "Classify",
+    "Detect",
+    "DualDetect",
+    "Pose",
+    "RTDETRDecoder",
+    "Segment",
+    "YOLOEDetect",
+    "YOLOESegment",
+    "v10Detect",
+)
+
 
 class DualDetect(nn.Module):
-    """
-    Shared Backbone/Neck + Two Detect heads
-      - ROI head: nc_roi=1 (crimp_region)  -> uses P3,P4,P5
-      - Defect head: nc_def=2 (short/insufficient) -> uses P2,P3,P4,P5
+    """Shared Backbone/Neck + Two Detect heads - ROI head: nc_roi=1 (crimp_region) -> uses P3,P4,P5 - Defect head:
+    nc_def=2 (short/insufficient) -> uses P2,P3,P4,P5.
 
-    Train: return (pred_roi, pred_def) for loss splitting
-    Eval : return merged prediction with nc_total=3 so predictor/validator unchanged
+    Train: return (pred_roi, pred_def) for loss splitting Eval : return merged prediction with nc_total=3 so
+    predictor/validator unchanged
     """
 
     export = False  # keep same style with Detect
@@ -47,14 +57,14 @@ class DualDetect(nn.Module):
         assert len(ch) == 4, f"DualDetect expects 4 feature maps (P2,P3,P4,P5), but got {len(ch)}"
 
         # 同文件直接用 Detect，别 import
-        self.det_def = Detect(nc=self.nc_def, ch=tuple(ch))        # P2-P5
-        self.det_roi = Detect(nc=self.nc_roi, ch=tuple(ch[1:]))    # P3-P5
+        self.det_def = Detect(nc=self.nc_def, ch=tuple(ch))  # P2-P5
+        self.det_roi = Detect(nc=self.nc_roi, ch=tuple(ch[1:]))  # P3-P5
 
         # ✅ 关键：Ultralytics 有时不会给 DualDetect 正确写 stride，这里强制兜底
         # P2,P3,P4,P5 -> stride = 4,8,16,32
-        self.det_def.stride = torch.tensor([4., 8., 16., 32.])
+        self.det_def.stride = torch.tensor([4.0, 8.0, 16.0, 32.0])
         # P3,P4,P5 -> stride = 8,16,32
-        self.det_roi.stride = torch.tensor([8., 16., 32.])
+        self.det_roi.stride = torch.tensor([8.0, 16.0, 32.0])
 
     def bias_init(self):
         # ✅ 若外部有调用 bias_init，不会漏掉子 head
@@ -76,11 +86,11 @@ class DualDetect(nn.Module):
         x = list(x)
 
         # 关键：Detect.forward 会“替换 list 里的元素”为预测张量，所以两个 head 必须用不同 list
-        x_def = list(x)        # 给 defect head 的副本
-        x_roi = list(x[1:])    # 给 roi head 的副本 (P3,P4,P5)
+        x_def = list(x)  # 给 defect head 的副本
+        x_roi = list(x[1:])  # 给 roi head 的副本 (P3,P4,P5)
 
-        p_def = self.det_def(x_def)   # P2-P5
-        p_roi = self.det_roi(x_roi)   # P3-P5
+        p_def = self.det_def(x_def)  # P2-P5
+        p_roi = self.det_roi(x_roi)  # P3-P5
 
         if self.training:
             return (p_roi, p_def)
@@ -96,7 +106,7 @@ class DualDetect(nn.Module):
         else:
             y_roi, x_roi_raw = p_roi, None
 
-       # ---------- merge to global nc=3 ----------
+        # ---------- merge to global nc=3 ----------
         # Detect._inference outputs: (bs, 4+nc, N)
         bs, _, n_def = y_def.shape
         _, _, n_roi = y_roi.shape
