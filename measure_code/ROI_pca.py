@@ -1,8 +1,10 @@
-﻿import cv2
-import numpy as np
+import glob
 import math
 import os
-import glob
+
+import cv2
+import numpy as np
+
 from ultralytics import YOLO
 
 
@@ -16,10 +18,9 @@ def show_resized(winname, img, max_size=900):
         img = cv2.resize(img, None, fx=scale, fy=scale)
     cv2.imshow(winname, img)
 
+
 def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
-    """
-    ROI + PCA 姿态归一化（安全版，不截断）
-    pad_ratio: 扩边比例（0.2~0.4 推荐）
+    """ROI + PCA 姿态归一化（安全版，不截断） pad_ratio: 扩边比例（0.2~0.4 推荐）.
     """
     h, w = roi_bgr.shape[:2]
 
@@ -27,11 +28,7 @@ def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
     pad_h = int(h * pad_ratio)
     pad_w = int(w * pad_ratio)
 
-    roi_pad = cv2.copyMakeBorder(
-        roi_bgr,
-        pad_h, pad_h, pad_w, pad_w,
-        borderType=cv2.BORDER_REPLICATE
-    )
+    roi_pad = cv2.copyMakeBorder(roi_bgr, pad_h, pad_h, pad_w, pad_w, borderType=cv2.BORDER_REPLICATE)
 
     # ========= 2️⃣ PCA 方向估计 =========
     gray = cv2.cvtColor(roi_pad, cv2.COLOR_BGR2GRAY)
@@ -43,7 +40,7 @@ def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
         return roi_bgr, 0.0
 
     pts = np.column_stack((xs, ys)).astype(np.float32)
-    mean, eigenvectors = cv2.PCACompute(pts, mean=None)
+    _mean, eigenvectors = cv2.PCACompute(pts, mean=None)
     vx, vy = eigenvectors[0]
 
     angle = math.degrees(math.atan2(vy, vx))
@@ -53,11 +50,7 @@ def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
     center = (W // 2, H // 2)
 
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    rotated = cv2.warpAffine(
-        roi_pad, M, (W, H),
-        flags=cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_REPLICATE
-    )
+    rotated = cv2.warpAffine(roi_pad, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
     # ========= 4️⃣ 裁回中心区域 =========
     y1 = pad_h
@@ -105,8 +98,7 @@ def process_one(model, img_path, conf=0.5, pad_ratio=0.3):
 
     if len(results.boxes) == 0:
         vis = img.copy()
-        cv2.putText(vis, "No crimp_region detected.", (20, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        cv2.putText(vis, "No crimp_region detected.", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
         return {"vis": vis, "roi": None, "roi_norm": None, "angle": None, "bbox": None}
 
     # ✅ 完全保留你原本：boxes[0]
@@ -126,7 +118,6 @@ def process_one(model, img_path, conf=0.5, pad_ratio=0.3):
 # 主流程
 # ==========================
 if __name__ == "__main__":
-
     # 1️⃣ 加载模型
     model = YOLO(r"D:\code\yolo_rephoto\v8n_blam_best.pt")  # 或 yolov8_blam.yaml + load 权重
 
@@ -167,32 +158,31 @@ if __name__ == "__main__":
             show_resized("Pose Normalized ROI (PCA)", data["roi_norm"])
         else:
             blank = np.zeros((480, 640, 3), np.uint8)
-            cv2.putText(blank, "NO ROI", (200, 260),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
+            cv2.putText(blank, "NO ROI", (200, 260), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
             show_resized("Cropped ROI", blank)
             show_resized("Pose Normalized ROI (PCA)", blank)
 
         # 控制台提示
-        print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  ", end="")
+        print(f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  ", end="")
 
         key = cv2.waitKey(0) & 0xFF
 
         # 退出
-        if key in [27, ord('q'), ord('Q')]:
+        if key in [27, ord("q"), ord("Q")]:
             break
 
         # 上一张
-        if key in [ord('a'), 81]:  # A or ←
+        if key in [ord("a"), 81]:  # A or ←
             idx -= 1
             continue
 
         # 下一张
-        if key in [ord('d'), 83]:  # D or →
+        if key in [ord("d"), 83]:  # D or →
             idx += 1
             continue
 
         # 保存当前结果
-        if key in [ord('s'), ord('S')]:
+        if key in [ord("s"), ord("S")]:
             cv2.imwrite(os.path.join(save_dir, f"{base}_vis.png"), data["vis"])
             if data["roi"] is not None:
                 cv2.imwrite(os.path.join(save_dir, f"{base}_roi.png"), data["roi"])

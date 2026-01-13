@@ -1,8 +1,10 @@
-﻿import os
 import glob
+import math
+import os
+
 import cv2
 import numpy as np
-import math
+
 from ultralytics import YOLO
 
 
@@ -26,12 +28,7 @@ def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
     pad_h = int(h * pad_ratio)
     pad_w = int(w * pad_ratio)
 
-    roi_pad = cv2.copyMakeBorder(
-        roi_bgr,
-        pad_h, pad_h, pad_w, pad_w,
-        borderType=cv2.BORDER_REPLICATE
-        
-    )
+    roi_pad = cv2.copyMakeBorder(roi_bgr, pad_h, pad_h, pad_w, pad_w, borderType=cv2.BORDER_REPLICATE)
 
     gray = cv2.cvtColor(roi_pad, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -51,11 +48,13 @@ def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
 
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
     rotated = cv2.warpAffine(
-        roi_pad, M, (W, H),
+        roi_pad,
+        M,
+        (W, H),
         flags=cv2.INTER_LINEAR,
         # borderMode=cv2.BORDER_REPLICATE
-        borderMode=cv2.BORDER_CONSTANT, borderValue=int(np.median(gray))
-
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=int(np.median(gray)),
     )
 
     y1 = pad_h
@@ -93,7 +92,7 @@ def collect_images(input_path):
 # YOLO：按类别取置信度最高的框
 # ==========================
 def get_best_box_by_class(r, cls_id: int):
-    """返回 (xyxy_int, conf_float)；如果不存在该类返回 (None, 0.0)"""
+    """返回 (xyxy_int, conf_float)；如果不存在该类返回 (None, 0.0)."""
     if r.boxes is None or len(r.boxes) == 0:
         return None, 0.0
 
@@ -101,7 +100,7 @@ def get_best_box_by_class(r, cls_id: int):
     cls = r.boxes.cls.cpu().numpy().astype(int)
     conf = r.boxes.conf.cpu().numpy().astype(float)
 
-    m = (cls == cls_id)
+    m = cls == cls_id
     if m.sum() == 0:
         return None, 0.0
 
@@ -114,8 +113,8 @@ def get_best_box_by_class(r, cls_id: int):
 def clamp_box(x1, y1, x2, y2, W, H, pad=0):
     x1 = max(0, min(W - 1, x1 - pad))
     y1 = max(0, min(H - 1, y1 - pad))
-    x2 = max(0, min(W,     x2 + pad))
-    y2 = max(0, min(H,     y2 + pad))
+    x2 = max(0, min(W, x2 + pad))
+    y2 = max(0, min(H, y2 + pad))
     if x2 <= x1 + 1 or y2 <= y1 + 1:
         return None
     return x1, y1, x2, y2
@@ -125,12 +124,9 @@ def clamp_box(x1, y1, x2, y2, W, H, pad=0):
 # 过长裁剪
 # ==========================
 def center_crop_to_width(img, target_w=580):
+    """若图像宽度 > target_w，则左右等量裁剪到 target_w 返回: (cropped_img, x_offset) x_offset 表示裁剪后图像在原图中的起始x（用于需要回映坐标时）.
     """
-    若图像宽度 > target_w，则左右等量裁剪到 target_w
-    返回: (cropped_img, x_offset)
-    x_offset 表示裁剪后图像在原图中的起始x（用于需要回映坐标时）
-    """
-    H, W = img.shape[:2]
+    _H, W = img.shape[:2]
     if W <= target_w:
         return img, 0
 
@@ -212,22 +208,20 @@ def snap_to_local_peak_1d(e_s, x, radius):
         return x
     return int(np.argmax(e_s[l:r])) + l
 
+
 def snap_peak_in_window(e_s, x_lo, x_hi):
-    """只在窗口[x_lo,x_hi]里找最大峰，避免被中间峰吸走"""
+    """只在窗口[x_lo,x_hi]里找最大峰，避免被中间峰吸走."""
     n = len(e_s)
     x_lo = int(np.clip(x_lo, 0, n - 1))
     x_hi = int(np.clip(x_hi, 0, n - 1))
     if x_hi <= x_lo:
         return x_lo
-    j = int(np.argmax(e_s[x_lo:x_hi + 1]))
+    j = int(np.argmax(e_s[x_lo : x_hi + 1]))
     return x_lo + j
 
 
-
-def pick_segment_by_threshold(e_s, xL_body, xR_body,
-                             thr_percentile=75, close_k=61,
-                             min_len_ratio=0.20):
-    body = e_s[xL_body:xR_body + 1]
+def pick_segment_by_threshold(e_s, xL_body, xR_body, thr_percentile=75, close_k=61, min_len_ratio=0.20):
+    body = e_s[xL_body : xR_body + 1]
     if body.size < 20:
         return None, None, None
 
@@ -235,7 +229,7 @@ def pick_segment_by_threshold(e_s, xL_body, xR_body,
     mask01 = (e_s >= thr).astype(np.uint8)
 
     mask01[:xL_body] = 0
-    mask01[xR_body + 1:] = 0
+    mask01[xR_body + 1 :] = 0
 
     mask01c = morph_close_1d(mask01, k=close_k)
 
@@ -255,8 +249,7 @@ def build_body_mask_from_edges(gray):
     edges = cv2.Canny(g, lo, hi)
 
     edges = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)), iterations=1)
-    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE,
-                             cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)), iterations=2)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)), iterations=2)
 
     cnts, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cnts:
@@ -288,10 +281,8 @@ def build_body_mask_from_edges(gray):
     mask = np.zeros((H, W), np.uint8)
     cv2.drawContours(mask, [best], -1, 255, thickness=-1)
 
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE,
-                            cv2.getStructuringElement(cv2.MORPH_RECT, (21, 21)), iterations=1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,
-                            cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)), iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (21, 21)), iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)), iterations=1)
     return mask
 
 
@@ -304,7 +295,7 @@ def build_body_mask_robust(gray):
     k1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
     k2 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
     th = cv2.morphologyEx(th, cv2.MORPH_CLOSE, k1, iterations=2)
-    th = cv2.morphologyEx(th, cv2.MORPH_OPEN,  k1, iterations=1)
+    th = cv2.morphologyEx(th, cv2.MORPH_OPEN, k1, iterations=1)
     th = cv2.morphologyEx(th, cv2.MORPH_CLOSE, k2, iterations=1)
 
     num, labels, stats, _ = cv2.connectedComponentsWithStats(th, connectivity=8)
@@ -318,7 +309,7 @@ def build_body_mask_robust(gray):
 
 
 def body_extent_in_band(mask, y1, y2, occ_thr_ratio=0.10):
-    H, W = mask.shape[:2]
+    _H, _W = mask.shape[:2]
     band = mask[y1:y2, :]
     col_occ = (band > 0).sum(axis=0).astype(np.float32)
     band_h = float(y2 - y1)
@@ -333,7 +324,7 @@ def body_extent_in_band(mask, y1, y2, occ_thr_ratio=0.10):
 
 
 def body_extent_in_band_robust(mask, y1, y2, occ_thr=0.06, close_k=31):
-    H, W = mask.shape[:2]
+    _H, _W = mask.shape[:2]
     band = (mask[y1:y2, :] > 0).astype(np.uint8)
     occ = band.mean(axis=0)
 
@@ -370,7 +361,7 @@ def body_extent_in_band_robust(mask, y1, y2, occ_thr=0.06, close_k=31):
 
 
 def edges_by_intensity_step(gray_enh, y1, y2, margin_ratio=0.06, smooth_sigma=6.0):
-    H, W = gray_enh.shape[:2]
+    _H, W = gray_enh.shape[:2]
     s = gray_enh[y1:y2, :].mean(axis=0).astype(np.float32)
     s_s = smooth_1d(s, sigma=smooth_sigma)
     g = np.abs(np.gradient(s_s))
@@ -381,8 +372,8 @@ def edges_by_intensity_step(gray_enh, y1, y2, margin_ratio=0.06, smooth_sigma=6.
     if L1 <= L0 or R1 <= R0:
         return None, None, s_s, g
 
-    xL = int(np.argmax(g[L0:L1 + 1])) + L0
-    xR = int(np.argmax(g[R0:R1 + 1])) + R0
+    xL = int(np.argmax(g[L0 : L1 + 1])) + L0
+    xR = int(np.argmax(g[R0 : R1 + 1])) + R0
     return xL, xR, s_s, g
 
 
@@ -390,13 +381,15 @@ def edges_by_intensity_step(gray_enh, y1, y2, margin_ratio=0.06, smooth_sigma=6.
 # 算法 A：正常端子测量
 # ============================================================
 def measure_normal_terminal(
-    roi_norm_bgr, mm_per_px=0.0,
-    band_top=0.35, band_bottom=0.65,
+    roi_norm_bgr,
+    mm_per_px=0.0,
+    band_top=0.35,
+    band_bottom=0.65,
     occ_thr_ratio=0.16,
     thr_percentile=70,
     close_k=61,
     min_len_ratio=0.25,
-    snap_ratio=0.03
+    snap_ratio=0.03,
 ):
     gray = cv2.cvtColor(roi_norm_bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -420,17 +413,14 @@ def measure_normal_terminal(
 
     _, e_s = energy_profile_x(gray_enh, y1, y2)
     seg, thr, _ = pick_segment_by_threshold(
-        e_s, xBodyL, xBodyR,
-        thr_percentile=thr_percentile,
-        close_k=close_k,
-        min_len_ratio=min_len_ratio
+        e_s, xBodyL, xBodyR, thr_percentile=thr_percentile, close_k=close_k, min_len_ratio=min_len_ratio
     )
 
     if seg is None:
-        xL0, xR0 = xBodyL, xBodyR
+        _xL0, _xR0 = xBodyL, xBodyR
         used = "fallback_body"
     else:
-        xL0, xR0 = seg[0], seg[1] - 1
+        _xL0, _xR0 = seg[0], seg[1] - 1
         used = "segment"
 
     # snap_r = int(max(6, snap_ratio * W))
@@ -444,19 +434,17 @@ def measure_normal_terminal(
     xL = snap_peak_in_window(e_s, xBodyL, xBodyL + win)
     xR = snap_peak_in_window(e_s, xBodyR - win, xBodyR)
 
-
     xL = int(np.clip(xL, xBodyL, xBodyR))
     xR = int(np.clip(xR, xBodyL, xBodyR))
 
     if xR <= xL:
         vis = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
         return None, None, None, None, vis, {"reason": "xR<=xL", "mask": mask}
-    
+
     seg_w = xR - xL
     body_w = xBodyR - xBodyL
     if seg_w > 0.92 * body_w:
-        xL, xR = xBodyL, xBodyR   # 或者改用 intensity_step 的 xL/xR
-
+        xL, xR = xBodyL, xBodyR  # 或者改用 intensity_step 的 xL/xR
 
     length_px = float(xR - xL)
     length_mm = length_px * float(mm_per_px) if (mm_per_px and mm_per_px > 0) else None
@@ -476,12 +464,14 @@ def measure_normal_terminal(
 # 算法 B：压接不足测量（你原逻辑保留）
 # ============================================================
 def measure_undercrimp_terminal(
-    roi_norm_bgr, mm_per_px=0.0,
-    band_top=0.28, band_bottom=0.72,
+    roi_norm_bgr,
+    mm_per_px=0.0,
+    band_top=0.28,
+    band_bottom=0.72,
     thr_percentile=55,
     close_k=101,
     min_len_ratio=0.35,
-    snap_ratio=0.06
+    snap_ratio=0.06,
 ):
     gray = cv2.cvtColor(roi_norm_bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -511,10 +501,7 @@ def measure_undercrimp_terminal(
 
     _, e_s = energy_profile_x(gray_enh, y1, y2)
     seg, thr, _ = pick_segment_by_threshold(
-        e_s, xBodyL, xBodyR,
-        thr_percentile=thr_percentile,
-        close_k=close_k,
-        min_len_ratio=min_len_ratio
+        e_s, xBodyL, xBodyR, thr_percentile=thr_percentile, close_k=close_k, min_len_ratio=min_len_ratio
     )
 
     body_w = xBodyR - xBodyL
@@ -557,11 +544,14 @@ def measure_undercrimp_terminal(
     cv2.line(vis, (xBodyL, 0), (xBodyL, H - 1), (255, 0, 0), 2)
     cv2.line(vis, (xBodyR, 0), (xBodyR, H - 1), (255, 0, 0), 2)
 
-    txt = f"len={length_px:.1f}px ({used})" if length_mm is None else f"len={length_px:.1f}px={length_mm:.2f}mm ({used})"
+    txt = (
+        f"len={length_px:.1f}px ({used})" if length_mm is None else f"len={length_px:.1f}px={length_mm:.2f}mm ({used})"
+    )
     cv2.putText(vis, txt, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
 
-    dbg = dict(mask=mask, band_y=(y1, y2), xBodyL=xBodyL, xBodyR=xBodyR, thr=thr, used=used,
-               xL_step=xL_step, xR_step=xR_step)
+    dbg = dict(
+        mask=mask, band_y=(y1, y2), xBodyL=xBodyL, xBodyR=xBodyR, thr=thr, used=used, xL_step=xL_step, xR_step=xR_step
+    )
     return length_px, length_mm, xL, xR, vis, dbg
 
 
@@ -573,14 +563,14 @@ def measure_undercrimp_terminal(
 # ==========================
 if __name__ == "__main__":
     weights_path = r"D:\code\yolo_rephoto\v8n_blam_best.pt"
-    input_path   = r"D:\code\yolo_rephoto\measure_pics"
-    save_dir     = r"D:\code\yolo_rephoto\measure_code\measure_out_under_only"
+    input_path = r"D:\code\yolo_rephoto\measure_pics"
+    save_dir = r"D:\code\yolo_rephoto\measure_code\measure_out_under_only"
     os.makedirs(save_dir, exist_ok=True)
 
     mm_per_px = 0.07329
 
-    CLASS_UNDER = 2   # 压接不足
-    CLASS_CRIMP = 0   # 压接区域（你要测它的长度）
+    CLASS_UNDER = 2  # 压接不足
+    CLASS_CRIMP = 0  # 压接区域（你要测它的长度）
     UNDER_THR = 0.6
 
     model = YOLO(weights_path)
@@ -614,11 +604,7 @@ if __name__ == "__main__":
 
                 # ✅ 只处理 under_conf >= 0.6 的图
                 if under_conf < UNDER_THR:
-                    cache[idx] = {
-                        "ok": False,
-                        "reason": f"skip_under_conf={under_conf:.2f}",
-                        "img": img
-                    }
+                    cache[idx] = {"ok": False, "reason": f"skip_under_conf={under_conf:.2f}", "img": img}
                 else:
                     # 2) under 达标后，必须拿 class0 框做长度测量
                     crimp_xyxy, crimp_conf = get_best_box_by_class(r, CLASS_CRIMP)
@@ -627,7 +613,7 @@ if __name__ == "__main__":
                             "ok": False,
                             "reason": "under_ok_but_no_class0",
                             "img": img,
-                            "under_conf": under_conf
+                            "under_conf": under_conf,
                         }
                     else:
                         # 裁 ROI（加一点 pad 防止贴边）
@@ -657,16 +643,27 @@ if __name__ == "__main__":
                             cv2.putText(
                                 vis,
                                 f"UNDER conf2={under_conf:.2f} | use=class0 conf0={crimp_conf:.2f} | rot={angle:.2f}",
-                                (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
+                                (20, 40),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.8,
+                                (0, 255, 0),
+                                2,
                             )
 
                             cache[idx] = dict(
-                                ok=True, img=img, vis=vis,
-                                roi=roi, roi_norm=roi_norm, angle=angle,
+                                ok=True,
+                                img=img,
+                                vis=vis,
+                                roi=roi,
+                                roi_norm=roi_norm,
+                                angle=angle,
                                 under_conf=under_conf,
                                 crimp_conf=crimp_conf,
                                 alg=alg_name,
-                                len_px=len_px, len_mm=len_mm, meas_vis=meas_vis, dbg=dbg
+                                len_px=len_px,
+                                len_mm=len_mm,
+                                meas_vis=meas_vis,
+                                dbg=dbg,
                             )
 
         data = cache[idx]
@@ -675,33 +672,40 @@ if __name__ == "__main__":
         if not data.get("ok", False):
             show_resized("Original Image + ROI", data.get("img", np.zeros((480, 640, 3), np.uint8)))
             blank = np.zeros((480, 640, 3), np.uint8)
-            cv2.putText(blank, f"{data.get('reason','skip')}", (30, 260),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+            cv2.putText(
+                blank, f"{data.get('reason', 'skip')}", (30, 260), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2
+            )
             show_resized("Pose Normalized ROI (PCA)", blank)
             show_resized("Measurement (UNDERCRIMP)", blank)
 
-            print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  {data.get('reason','skip')}        ", end="")
+            print(
+                f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  {data.get('reason', 'skip')}        ",
+                end="",
+            )
         else:
             show_resized("Original Image + ROI", data["vis"])
             show_resized("Pose Normalized ROI (PCA)", data["roi_norm"])
             show_resized("Measurement (UNDERCRIMP)", data["meas_vis"])
 
             msg = "len=FAIL" if data["len_px"] is None else f"len={data['len_px']:.1f}px"
-            print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  under_conf2={data['under_conf']:.2f}  {msg}    ", end="")
+            print(
+                f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  under_conf2={data['under_conf']:.2f}  {msg}    ",
+                end="",
+            )
 
         # === 键盘 ===
         key = cv2.waitKey(0) & 0xFF
-        if key in [27, ord('q'), ord('Q')]:
+        if key in [27, ord("q"), ord("Q")]:
             break
-        if key in [ord('a'), 81]:
+        if key in [ord("a"), 81]:
             idx -= 1
             continue
-        if key in [ord('d'), 83]:
+        if key in [ord("d"), 83]:
             idx += 1
             continue
 
         # === 保存：只保存 ok 的（也就是 under_conf>=0.6 且有 class0 的）===
-        if key in [ord('s'), ord('S')] and data.get("ok", False):
+        if key in [ord("s"), ord("S")] and data.get("ok", False):
             cv2.imwrite(os.path.join(save_dir, f"{base}_vis.png"), data["vis"])
             cv2.imwrite(os.path.join(save_dir, f"{base}_roi.png"), data["roi"])
             cv2.imwrite(os.path.join(save_dir, f"{base}_roi_norm.png"), data["roi_norm"])
