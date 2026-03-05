@@ -1,6 +1,8 @@
-﻿# p2changecmp.py
+# p2changecmp.py
 import multiprocessing as mp
+
 from ultralytics import YOLO
+
 
 def print_per_class_ap(metrics, title=""):
     # Ultralytics 的 metrics.names: {0:'xx', 1:'yy', ...}
@@ -23,12 +25,13 @@ def print_per_class_ap(metrics, title=""):
         cname = names.get(i, str(i))
         print(f"{i:2d} {cname:20s}  AP50-95: {ap:.4f}")
 
+
 def main():
     data = r"D:\code\yolo_rephoto\dataset_rephoto\data.yaml"
 
     # 改成你自己的权重路径
     w_baseline = r"D:\code\yolo_rephoto\baseline_best.pt"
-    w_p2       = r"D:\code\yolo_rephoto\smallobj_best.pt"
+    w_p2 = r"D:\code\yolo_rephoto\smallobj_best.pt"
 
     m0 = YOLO(w_baseline)
     r0 = m0.val(data=data, split="test", imgsz=1024, conf=0.001, workers=0, device=0)
@@ -47,8 +50,9 @@ def main():
     print("-" * 60)
     for i in range(len(ap0)):
         cname = names.get(i, str(i))
-        print(f"{i:2d} {cname:20s}  {ap0[i]:.4f} -> {ap1[i]:.4f}  Δ{(ap1[i]-ap0[i]):+.4f}")
+        print(f"{i:2d} {cname:20s}  {ap0[i]:.4f} -> {ap1[i]:.4f}  Δ{(ap1[i] - ap0[i]):+.4f}")
+
 
 if __name__ == "__main__":
-    mp.freeze_support()   # Windows 必加（尤其你以后可能打包exe时）
+    mp.freeze_support()  # Windows 必加（尤其你以后可能打包exe时）
     main()
