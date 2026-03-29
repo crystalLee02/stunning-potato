@@ -1,8 +1,10 @@
-﻿import os
 import glob
+import math
+import os
+
 import cv2
 import numpy as np
-import math
+
 from ultralytics import YOLO
 
 
@@ -25,10 +27,7 @@ def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
     pad_h = int(h * pad_ratio)
     pad_w = int(w * pad_ratio)
 
-    roi_pad = cv2.copyMakeBorder(
-        roi_bgr, pad_h, pad_h, pad_w, pad_w,
-        borderType=cv2.BORDER_REPLICATE
-    )
+    roi_pad = cv2.copyMakeBorder(roi_bgr, pad_h, pad_h, pad_w, pad_w, borderType=cv2.BORDER_REPLICATE)
 
     gray = cv2.cvtColor(roi_pad, cv2.COLOR_BGR2GRAY)
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -46,11 +45,7 @@ def normalize_pose_pca(roi_bgr, pad_ratio=0.3):
     H, W = roi_pad.shape[:2]
     center = (W // 2, H // 2)
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    rotated = cv2.warpAffine(
-        roi_pad, M, (W, H),
-        flags=cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_REPLICATE
-    )
+    rotated = cv2.warpAffine(roi_pad, M, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
 
     y1 = pad_h
     y2 = pad_h + h
@@ -87,7 +82,7 @@ def collect_images(input_path):
 # YOLO：按类别取置信度最高的框
 # ==========================
 def get_best_box_by_class(r, cls_id: int):
-    """返回 (xyxy_int, conf_float)；如果不存在该类返回 (None, 0.0)"""
+    """返回 (xyxy_int, conf_float)；如果不存在该类返回 (None, 0.0)."""
     if r.boxes is None or len(r.boxes) == 0:
         return None, 0.0
 
@@ -95,7 +90,7 @@ def get_best_box_by_class(r, cls_id: int):
     cls = r.boxes.cls.cpu().numpy().astype(int)
     conf = r.boxes.conf.cpu().numpy().astype(float)
 
-    m = (cls == cls_id)
+    m = cls == cls_id
     if m.sum() == 0:
         return None, 0.0
 
@@ -108,8 +103,8 @@ def get_best_box_by_class(r, cls_id: int):
 def clamp_box(x1, y1, x2, y2, W, H, pad=0):
     x1 = max(0, min(W - 1, x1 - pad))
     y1 = max(0, min(H - 1, y1 - pad))
-    x2 = max(0, min(W,     x2 + pad))
-    y2 = max(0, min(H,     y2 + pad))
+    x2 = max(0, min(W, x2 + pad))
+    y2 = max(0, min(H, y2 + pad))
     if x2 <= x1 + 1 or y2 <= y1 + 1:
         return None
     return x1, y1, x2, y2
@@ -119,12 +114,9 @@ def clamp_box(x1, y1, x2, y2, W, H, pad=0):
 # ✅ 过长裁剪：左右等比例裁剪到固定宽度
 # ==========================
 def center_crop_to_width(img, target_w=550):
+    """若图像宽度 > target_w，则左右等量裁剪到 target_w 返回: (cropped_img, x_offset, cropped_flag) x_offset 表示裁剪后图像在原图中的起始x（用于回映坐标可用）.
     """
-    若图像宽度 > target_w，则左右等量裁剪到 target_w
-    返回: (cropped_img, x_offset, cropped_flag)
-    x_offset 表示裁剪后图像在原图中的起始x（用于回映坐标可用）
-    """
-    H, W = img.shape[:2]
+    _H, W = img.shape[:2]
     if W <= target_w:
         return img, 0, False
     x0 = (W - target_w) // 2
@@ -158,7 +150,7 @@ def snap_peak_in_window(e_s, x_lo, x_hi):
     x_hi = int(np.clip(x_hi, 0, n - 1))
     if x_hi <= x_lo:
         return x_lo
-    j = int(np.argmax(e_s[x_lo:x_hi + 1]))
+    j = int(np.argmax(e_s[x_lo : x_hi + 1]))
     return x_lo + j
 
 
@@ -173,8 +165,7 @@ def build_body_mask_from_edges(gray):
     edges = cv2.Canny(g, lo, hi)
 
     edges = cv2.dilate(edges, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5)), iterations=1)
-    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE,
-                             cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)), iterations=2)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)), iterations=2)
 
     cnts, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not cnts:
@@ -205,10 +196,8 @@ def build_body_mask_from_edges(gray):
 
     mask = np.zeros((H, W), np.uint8)
     cv2.drawContours(mask, [best], -1, 255, thickness=-1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE,
-                            cv2.getStructuringElement(cv2.MORPH_RECT, (21, 21)), iterations=1)
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,
-                            cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)), iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (21, 21)), iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)), iterations=1)
     return mask
 
 
@@ -229,10 +218,7 @@ def body_extent_in_band(mask, y1, y2, occ_thr_ratio=0.16):
 # ✅ 正常端子测量（定义：class2_conf < UNDER_THR）
 # ============================================================
 def measure_normal_terminal(
-    roi_norm_bgr, mm_per_px=0.0,
-    band_top=0.35, band_bottom=0.65,
-    occ_thr_ratio=0.16,
-    end_win_ratio=0.25
+    roi_norm_bgr, mm_per_px=0.0, band_top=0.35, band_bottom=0.65, occ_thr_ratio=0.16, end_win_ratio=0.25
 ):
     gray = cv2.cvtColor(roi_norm_bgr, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -288,15 +274,15 @@ def measure_normal_terminal(
 # ==========================
 if __name__ == "__main__":
     weights_path = r"D:\code\yolo_rephoto\v8n_blam_best.pt"
-    input_path   = r"D:\code\yolo_rephoto\measure_pics"
-    save_dir     = r"D:\code\yolo_rephoto\measure_code\measure_out_normal_by_under"
+    input_path = r"D:\code\yolo_rephoto\measure_pics"
+    save_dir = r"D:\code\yolo_rephoto\measure_code\measure_out_normal_by_under"
     os.makedirs(save_dir, exist_ok=True)
 
     mm_per_px = 0.07329
 
-    CLASS_CRIMP = 0   # 压接区域框（用于测长度）
-    CLASS_UNDER = 2   # 压接不足缺陷（用于判定“是否正常”）
-    UNDER_THR = 0.6   # <0.6 => 正常端子
+    CLASS_CRIMP = 0  # 压接区域框（用于测长度）
+    CLASS_UNDER = 2  # 压接不足缺陷（用于判定“是否正常”）
+    UNDER_THR = 0.6  # <0.6 => 正常端子
 
     # ✅ 裁剪参数：你要求的“超过就裁剪到固定宽度”
     CROP_TARGET_W = 450
@@ -330,8 +316,15 @@ if __name__ == "__main__":
                 if under_conf >= UNDER_THR:
                     # 压接不足：本脚本不测量
                     vis = img.copy()
-                    cv2.putText(vis, f"UNDERCRIMP_SKIP: class2_conf={under_conf:.2f} >= {UNDER_THR}",
-                                (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+                    cv2.putText(
+                        vis,
+                        f"UNDERCRIMP_SKIP: class2_conf={under_conf:.2f} >= {UNDER_THR}",
+                        (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.9,
+                        (0, 0, 255),
+                        2,
+                    )
                     cache[idx] = {"ok": True, "skip": True, "img": img, "vis": vis, "under_conf": under_conf}
                 else:
                     # 正常端子：取 class0 框测长度
@@ -358,20 +351,38 @@ if __name__ == "__main__":
 
                             vis = img.copy()
                             cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            crop_tag = f"cropW={roi_norm_raw_w}->{roi_norm.shape[1]} off={crop_off_x}" if cropped else "cropW=NO"
-                            cv2.putText(vis,
-                                        f"NORMAL: class2_conf={under_conf:.2f} < {UNDER_THR} | class0_conf={crimp_conf:.2f} | rot={angle:.2f} | {crop_tag}",
-                                        (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
+                            crop_tag = (
+                                f"cropW={roi_norm_raw_w}->{roi_norm.shape[1]} off={crop_off_x}"
+                                if cropped
+                                else "cropW=NO"
+                            )
+                            cv2.putText(
+                                vis,
+                                f"NORMAL: class2_conf={under_conf:.2f} < {UNDER_THR} | class0_conf={crimp_conf:.2f} | rot={angle:.2f} | {crop_tag}",
+                                (20, 40),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                0.75,
+                                (0, 255, 0),
+                                2,
+                            )
 
                             cache[idx] = dict(
-                                ok=True, skip=False,
-                                img=img, vis=vis,
-                                roi=roi, roi_norm=roi_norm, angle=angle,
-                                under_conf=under_conf, conf0=crimp_conf,
-                                cropped=cropped, crop_off_x=crop_off_x,
+                                ok=True,
+                                skip=False,
+                                img=img,
+                                vis=vis,
+                                roi=roi,
+                                roi_norm=roi_norm,
+                                angle=angle,
+                                under_conf=under_conf,
+                                conf0=crimp_conf,
+                                cropped=cropped,
+                                crop_off_x=crop_off_x,
                                 roi_norm_raw_w=roi_norm_raw_w,
-                                len_px=len_px, len_mm=len_mm,
-                                meas_vis=meas_vis, dbg=dbg
+                                len_px=len_px,
+                                len_mm=len_mm,
+                                meas_vis=meas_vis,
+                                dbg=dbg,
                             )
 
         data = cache[idx]
@@ -379,39 +390,61 @@ if __name__ == "__main__":
         if not data.get("ok", False):
             show_resized("Original Image + ROI", data.get("img", np.zeros((480, 640, 3), np.uint8)))
             blank = np.zeros((480, 640, 3), np.uint8)
-            cv2.putText(blank, f"FAIL: {data.get('reason','unknown')}", (40, 260),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+            cv2.putText(
+                blank,
+                f"FAIL: {data.get('reason', 'unknown')}",
+                (40, 260),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.2,
+                (0, 0, 255),
+                3,
+            )
             show_resized("Pose Normalized ROI (PCA)", blank)
             show_resized("Measurement (NORMAL)", blank)
 
-            print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  FAIL={data.get('reason')}    ", end="")
+            print(f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  FAIL={data.get('reason')}    ", end="")
         else:
             show_resized("Original Image + ROI", data["vis"])
             if data.get("skip", False):
                 blank = np.zeros((480, 640, 3), np.uint8)
-                cv2.putText(blank, f"SKIPPED (under_conf={data['under_conf']:.2f})", (40, 260),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+                cv2.putText(
+                    blank,
+                    f"SKIPPED (under_conf={data['under_conf']:.2f})",
+                    (40, 260),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.2,
+                    (0, 0, 255),
+                    3,
+                )
                 show_resized("Pose Normalized ROI (PCA)", blank)
                 show_resized("Measurement (NORMAL)", blank)
-                print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  SKIP under_conf2={data['under_conf']:.2f}  ", end="")
+                print(
+                    f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  SKIP under_conf2={data['under_conf']:.2f}  ",
+                    end="",
+                )
             else:
                 show_resized("Pose Normalized ROI (PCA)", data["roi_norm"])
                 show_resized("Measurement (NORMAL)", data["meas_vis"])
                 msg = "len=FAIL" if data["len_px"] is None else f"len={data['len_px']:.1f}px"
-                crop_msg = f"crop={data['roi_norm_raw_w']}->{data['roi_norm'].shape[1]}" if data.get("cropped") else "crop=NO"
-                print(f"\r[{idx+1}/{len(img_list)}] {os.path.basename(img_path)}  under_conf2={data['under_conf']:.2f}  {crop_msg}  {msg}    ", end="")
+                crop_msg = (
+                    f"crop={data['roi_norm_raw_w']}->{data['roi_norm'].shape[1]}" if data.get("cropped") else "crop=NO"
+                )
+                print(
+                    f"\r[{idx + 1}/{len(img_list)}] {os.path.basename(img_path)}  under_conf2={data['under_conf']:.2f}  {crop_msg}  {msg}    ",
+                    end="",
+                )
 
         key = cv2.waitKey(0) & 0xFF
-        if key in [27, ord('q'), ord('Q')]:
+        if key in [27, ord("q"), ord("Q")]:
             break
-        if key in [ord('a'), 81]:
+        if key in [ord("a"), 81]:
             idx -= 1
             continue
-        if key in [ord('d'), 83]:
+        if key in [ord("d"), 83]:
             idx += 1
             continue
 
-        if key in [ord('s'), ord('S')] and data.get("ok", False):
+        if key in [ord("s"), ord("S")] and data.get("ok", False):
             if data.get("skip", False):
                 cv2.imwrite(os.path.join(save_dir, f"{base}_skip_vis.png"), data["vis"])
                 with open(os.path.join(save_dir, f"{base}_skip.txt"), "w", encoding="utf-8") as f:

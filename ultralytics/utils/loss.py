@@ -232,8 +232,8 @@ class v8DetectionLoss:
             self.use_dfl = self.reg_max > 1
             self.proj = torch.arange(self.reg_max, dtype=torch.float, device=device)
 
-            self.nc_def = int(self.det_def.nc)      # 2
-            self.nc_roi = int(self.det_roi.nc)      # 1
+            self.nc_def = int(self.det_def.nc)  # 2
+            self.nc_roi = int(self.det_roi.nc)  # 1
             self.nc_total = self.nc_roi + self.nc_def
 
             # self.stride_def = self.det_def.stride   # len=4 (P2-P5)
@@ -285,12 +285,8 @@ class v8DetectionLoss:
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
     def _loss_single(self, feats, batch, stride, nc, assigner, bbox_loss):
-        """
-        feats: list[Tensor], each (bs, reg_max*4 + nc, h, w)
-        stride: Tensor/list, len == len(feats)
-        nc: head class count
-        assigner: TaskAlignedAssigner for this head
-        bbox_loss: BboxLoss for this head
+        """feats: list[Tensor], each (bs, reg_max*4 + nc, h, w) stride: Tensor/list, len == len(feats) nc: head class
+        count assigner: TaskAlignedAssigner for this head bbox_loss: BboxLoss for this head.
         """
         loss = torch.zeros(3, device=self.device)
 
@@ -367,7 +363,12 @@ class v8DetectionLoss:
         # ---------------- DualDetect path ----------------
         if getattr(self, "is_dual", False):
             # val path: (y_merged, {"roi": roi_raw_list, "def": def_raw_list})
-            if isinstance(preds, (tuple, list)) and len(preds) == 2 and isinstance(preds[1], dict) and "roi" in preds[1]:
+            if (
+                isinstance(preds, (tuple, list))
+                and len(preds) == 2
+                and isinstance(preds[1], dict)
+                and "roi" in preds[1]
+            ):
                 aux = preds[1]
                 pred_roi = aux["roi"]  # list[Tensor]
                 pred_def = aux["def"]  # list[Tensor]
@@ -377,8 +378,8 @@ class v8DetectionLoss:
 
             # split GT
             cls_all = batch["cls"].view(-1)
-            mask_roi = (cls_all == 0)
-            mask_def = (cls_all != 0)
+            mask_roi = cls_all == 0
+            mask_def = cls_all != 0
 
             batch_roi = self._filter_batch(batch, mask_roi, cls_offset=0)  # keep cls=0
             batch_def = self._filter_batch(batch, mask_def, cls_offset=1)  # 1/2 -> 0/1
@@ -387,12 +388,10 @@ class v8DetectionLoss:
             stride_def = self.det_def.stride
 
             loss_roi = self._loss_single(
-                pred_roi, batch_roi, stride_roi, nc=1,
-                assigner=self.assigner_roi, bbox_loss=self.bbox_loss_roi
+                pred_roi, batch_roi, stride_roi, nc=1, assigner=self.assigner_roi, bbox_loss=self.bbox_loss_roi
             )
             loss_def = self._loss_single(
-                pred_def, batch_def, stride_def, nc=2,
-                assigner=self.assigner_def, bbox_loss=self.bbox_loss_def
+                pred_def, batch_def, stride_def, nc=2, assigner=self.assigner_def, bbox_loss=self.bbox_loss_def
             )
 
             loss = loss_roi + loss_def * float(self.defect_w)
@@ -448,8 +447,6 @@ class v8DetectionLoss:
         loss[1] *= self.hyp.cls
         loss[2] *= self.hyp.dfl
         return loss * batch_size, loss.detach()
-
-
 
 
 class v8SegmentationLoss(v8DetectionLoss):
