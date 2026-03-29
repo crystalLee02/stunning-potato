@@ -1,18 +1,19 @@
-﻿import os, glob
+import glob
+import os
 
 label_dir = r"D:\code\yolo_rephoto\dataset_rephoto\labels\val"
 bad = []
-cnt = [0,0,0]
+cnt = [0, 0, 0]
 for fp in glob.glob(os.path.join(label_dir, "*.txt")):
-    with open(fp, "r", encoding="utf-8") as f:
+    with open(fp, encoding="utf-8") as f:
         for line in f:
             p = line.strip().split()
-            if len(p) != 5: 
-                bad.append((fp, "len!=5", line)); 
+            if len(p) != 5:
+                bad.append((fp, "len!=5", line))
                 continue
             c = int(float(p[0]))
-            x,y,w,h = map(float, p[1:])
-            if c<0 or c>2:
+            x, y, w, h = map(float, p[1:])
+            if c < 0 or c > 2:
                 bad.append((fp, "cls_out_of_range", line))
                 continue
             cnt[c] += 1
