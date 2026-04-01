@@ -6,7 +6,6 @@ import re
 import types
 from copy import deepcopy
 from pathlib import Path
-from ultralytics.nn.modules.head import DualDetect
 
 import torch
 import torch.nn as nn
@@ -71,6 +70,7 @@ from ultralytics.nn.modules import (
     YOLOESegment,
     v10Detect,
 )
+from ultralytics.nn.modules.head import DualDetect
 from ultralytics.utils import DEFAULT_CFG_DICT, LOGGER, YAML, colorstr, emojis
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
 from ultralytics.utils.loss import (
@@ -774,8 +774,9 @@ class RTDETRDetectionModel(DetectionModel):
         assert (def_t[:, 1] >= 0).all() and (def_t[:, 1] <= 1).all()
 
         if self.seen < 20:  # 或者 if i < 20，取你能拿到的迭代计数
-            print(f"[dbg] roi:{len(roi_t)} def:{len(def_t)} def_cls={def_t[:,1].unique().tolist() if len(def_t) else []}")
-
+            print(
+                f"[dbg] roi:{len(roi_t)} def:{len(def_t)} def_cls={def_t[:, 1].unique().tolist() if len(def_t) else []}"
+            )
 
         if preds is None:
             preds = self.predict(img, batch=targets)
@@ -1639,7 +1640,18 @@ def parse_model(d, ch, verbose=True):
         elif m is Concat:
             c2 = sum(ch[x] for x in f)
         elif m in frozenset(
-            {Detect, WorldDetect, YOLOEDetect, Segment, YOLOESegment, Pose, OBB, ImagePoolingAttn, v10Detect, DualDetect}
+            {
+                Detect,
+                WorldDetect,
+                YOLOEDetect,
+                Segment,
+                YOLOESegment,
+                Pose,
+                OBB,
+                ImagePoolingAttn,
+                v10Detect,
+                DualDetect,
+            }
         ):
             args.append([ch[x] for x in f])
             if m is Segment or m is YOLOESegment:
